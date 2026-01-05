@@ -47,7 +47,7 @@ export default function MapsScraper() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('https://maddy264m.app.n8n.cloud/webhook/scrape-companies', {
+      const response = await fetch('https://maddy264m.app.n8n.cloud/webhook-test/scrape-companies', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
