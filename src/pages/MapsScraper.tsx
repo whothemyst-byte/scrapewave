@@ -49,8 +49,8 @@ export default function MapsScraper() {
     try {
       // Use different webhook based on verified toggle
       const webhookUrl = verifiedOnly
-        ? 'VERIFIED_WEBHOOK_URL_PLACEHOLDER'
-        : 'NORMAL_WEBHOOK_URL_PLACEHOLDER';
+        ? 'https://maddy264m.app.n8n.cloud/webhook-test/scrape-companies-validation'
+        : 'https://maddy264m.app.n8n.cloud/webhook/scrape-companies';
 
       const response = await fetch(webhookUrl, {
         method: 'POST',
