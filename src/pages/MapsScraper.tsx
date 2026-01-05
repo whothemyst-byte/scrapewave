@@ -12,7 +12,7 @@ import { ScraperResult } from '@/types/scraper';
 export default function MapsScraper() {
   const [category, setCategory] = useState('');
   const [location, setLocation] = useState('');
-  const [maxResults, setMaxResults] = useState(50);
+  const [maxResults, setMaxResults] = useState(20);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,7 +47,12 @@ export default function MapsScraper() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('https://maddy264m.app.n8n.cloud/webhook-test/scrape-companies', {
+      // Use different webhook based on verified toggle
+      const webhookUrl = verifiedOnly
+        ? 'VERIFIED_WEBHOOK_URL_PLACEHOLDER'
+        : 'NORMAL_WEBHOOK_URL_PLACEHOLDER';
+
+      const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
