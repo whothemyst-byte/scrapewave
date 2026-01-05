@@ -47,9 +47,7 @@ export default function MapsScraper() {
     setIsLoading(true);
 
     try {
-      // Simulate webhook call
-      // In production, replace with actual webhook URL
-      const response = await fetch('https://httpbin.org/post', {
+      const response = await fetch('https://maddy264m.app.n8n.cloud/webhook/scrape-companies', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -64,18 +62,33 @@ export default function MapsScraper() {
         throw new Error('Scrape failed');
       }
 
-      // Generate mock results for demo
-      const mockResults: ScraperResult[] = Array.from({ length: maxResults }, (_, i) => ({
-        company_name: `${category} Business ${i + 1}`,
-        verified: verifiedOnly || Math.random() > 0.3,
-        phone: Math.random() > 0.2 ? `+1 (555) ${String(Math.floor(Math.random() * 900) + 100)}-${String(Math.floor(Math.random() * 9000) + 1000)}` : null,
-        email: Math.random() > 0.3 ? `contact@business${i + 1}.com` : null,
-        website: Math.random() > 0.2 ? `https://business${i + 1}.com` : null,
-        rating: Math.random() > 0.1 ? Number((Math.random() * 2 + 3).toFixed(1)) : null,
-        rating_count: Math.random() > 0.1 ? Math.floor(Math.random() * 500) + 10 : null,
-      }));
+      const data = await response.json();
+      
+      // Map webhook response to ScraperResult format
+      // Adjust field mapping based on your n8n workflow output
+      const results: ScraperResult[] = Array.isArray(data) 
+        ? data.map((item: any) => ({
+            company_name: item.company_name || item.name || item.title || '—',
+            verified: item.verified ?? item.is_verified ?? false,
+            phone: item.phone || item.phone_number || null,
+            email: item.email || null,
+            website: item.website || item.url || null,
+            rating: item.rating ? Number(item.rating) : null,
+            rating_count: item.rating_count || item.reviews_count || item.review_count || null,
+          }))
+        : [];
 
-      setResults(mockResults);
+      if (results.length === 0) {
+        toast({
+          title: 'No results found',
+          description: 'Try a different category or location.',
+          variant: 'destructive',
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      setResults(results);
       setCredits(credits - estimatedCost);
       addActivity({
         type: 'scrape',
@@ -85,14 +98,15 @@ export default function MapsScraper() {
 
       toast({
         title: 'Scrape complete!',
-        description: `Found ${mockResults.length} results.`,
+        description: `Found ${results.length} results.`,
       });
 
       navigate('/results');
     } catch (error) {
+      console.error('Scrape error:', error);
       toast({
         title: 'Scrape failed',
-        description: 'Something went wrong. Please try again.',
+        description: 'Could not reach the scraping service. Please try again.',
         variant: 'destructive',
       });
     } finally {
