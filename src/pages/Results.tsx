@@ -3,6 +3,8 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
 import { useApp } from '@/contexts/AppContext';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -13,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Download, FileJson, ExternalLink, Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, FileJson, ExternalLink, Check, X, ChevronLeft, ChevronRight, Search, Globe, Phone } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const ITEMS_PER_PAGE = 10;
@@ -23,10 +25,31 @@ export default function Results() {
   const { toast } = useToast();
   const [currentPage, setCurrentPage] = useState(1);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [hasWebsite, setHasWebsite] = useState(false);
+  const [hasPhone, setHasPhone] = useState(false);
+  const [ratingRange, setRatingRange] = useState<[number, number]>([0, 5]);
 
   const filteredResults = useMemo(() => {
-    return verifiedOnly ? results.filter((r) => r.verified) : results;
-  }, [results, verifiedOnly]);
+    return results.filter((r) => {
+      // Verified filter
+      if (verifiedOnly && !r.verified) return false;
+      // Search filter
+      if (searchQuery && !r.company_name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      // Has website filter
+      if (hasWebsite && !r.website) return false;
+      // Has phone filter
+      if (hasPhone && !r.phone) return false;
+      // Rating range filter
+      if (r.rating != null) {
+        if (r.rating < ratingRange[0] || r.rating > ratingRange[1]) return false;
+      } else if (ratingRange[0] > 0) {
+        // If min rating is set and result has no rating, exclude it
+        return false;
+      }
+      return true;
+    });
+  }, [results, verifiedOnly, searchQuery, hasWebsite, hasPhone, ratingRange]);
 
   const totalPages = Math.ceil(filteredResults.length / ITEMS_PER_PAGE);
   const paginatedResults = filteredResults.slice(
@@ -99,10 +122,32 @@ export default function Results() {
     });
   };
 
-  // Reset to page 1 when filter changes
-  const handleFilterChange = (value: boolean) => {
+  // Reset to page 1 when any filter changes
+  const resetPage = () => setCurrentPage(1);
+
+  const handleVerifiedChange = (value: boolean) => {
     setVerifiedOnly(value);
-    setCurrentPage(1);
+    resetPage();
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    resetPage();
+  };
+
+  const handleWebsiteChange = (value: boolean) => {
+    setHasWebsite(value);
+    resetPage();
+  };
+
+  const handlePhoneChange = (value: boolean) => {
+    setHasPhone(value);
+    resetPage();
+  };
+
+  const handleRatingChange = (value: number[]) => {
+    setRatingRange([value[0], value[1]]);
+    resetPage();
   };
 
   return (
@@ -134,10 +179,57 @@ export default function Results() {
         {results.length > 0 ? (
           <>
             {/* Filters */}
-            <div className="glass rounded-xl p-4 mb-6 flex items-center justify-between animate-in" style={{ animationDelay: '100ms' }}>
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium">Verified only</span>
-                <Switch checked={verifiedOnly} onCheckedChange={handleFilterChange} />
+            <div className="glass rounded-xl p-4 mb-6 animate-in" style={{ animationDelay: '100ms' }}>
+              <div className="flex flex-col gap-4">
+                {/* Search and toggles row */}
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                  {/* Search */}
+                  <div className="relative flex-1 max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search company name..."
+                      value={searchQuery}
+                      onChange={(e) => handleSearchChange(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+
+                  {/* Toggle filters */}
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Verified</span>
+                      <Switch checked={verifiedOnly} onCheckedChange={handleVerifiedChange} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Has Website</span>
+                      <Switch checked={hasWebsite} onCheckedChange={handleWebsiteChange} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Has Phone</span>
+                      <Switch checked={hasPhone} onCheckedChange={handlePhoneChange} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rating range slider */}
+                <div className="flex flex-col md:flex-row md:items-center gap-3">
+                  <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+                    Rating: {ratingRange[0]} – {ratingRange[1]} ★
+                  </span>
+                  <div className="flex-1 max-w-xs">
+                    <Slider
+                      value={ratingRange}
+                      onValueChange={handleRatingChange}
+                      min={0}
+                      max={5}
+                      step={0.5}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
