@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { useApp } from '@/contexts/AppContext';
 import { useToast } from '@/hooks/use-toast';
-import { Map, Loader2, ChevronDown, ChevronUp, Zap, Info } from 'lucide-react';
+import { Map, Loader2, ChevronDown, ChevronUp, Zap, Info, ShieldCheck, Layers } from 'lucide-react';
 import { ScraperResult } from '@/types/scraper';
 
 export default function MapsScraper() {
@@ -221,10 +221,18 @@ export default function MapsScraper() {
             disabled={isLoading}
           >
             {isLoading ? (
-              <>
+              <div className="flex items-center gap-2">
                 <Loader2 className="w-5 h-5 animate-spin" />
-                Scraping...
-              </>
+                <span>Scraping...</span>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                  verifiedOnly 
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                    : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                }`}>
+                  {verifiedOnly ? <ShieldCheck className="w-3 h-3" /> : <Layers className="w-3 h-3" />}
+                  {verifiedOnly ? 'Verified' : 'Standard'}
+                </span>
+              </div>
             ) : (
               <>
                 <Map className="w-5 h-5" />
