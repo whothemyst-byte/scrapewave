@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { Progress } from '@/components/ui/progress';
 import { useApp } from '@/contexts/AppContext';
 import { useToast } from '@/hooks/use-toast';
 import { Map, Loader2, ChevronDown, ChevronUp, Zap, Info, ShieldCheck, Layers } from 'lucide-react';
@@ -16,6 +17,7 @@ export default function MapsScraper() {
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   const { setResults, addActivity, credits, setCredits } = useApp();
   const navigate = useNavigate();
@@ -45,6 +47,15 @@ export default function MapsScraper() {
     }
 
     setIsLoading(true);
+    setProgress(0);
+
+    // Simulate progress while waiting for response
+    const progressInterval = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + Math.random() * 15;
+      });
+    }, 500);
 
     try {
       // Use different webhook based on verified toggle
@@ -69,19 +80,25 @@ export default function MapsScraper() {
 
       const data = await response.json();
       
+      // Log the raw response for debugging
+      console.log('Webhook response:', data);
+      
       // Map webhook response to ScraperResult format
-      // Adjust field mapping based on your n8n workflow output
+      // Handles various field naming conventions from n8n workflows
       const results: ScraperResult[] = Array.isArray(data) 
         ? data.map((item: any) => ({
-            company_name: item.company_name || item.name || item.title || '—',
-            verified: item.verified ?? item.is_verified ?? false,
-            phone: item.phone || item.phone_number || null,
-            email: item.email || null,
-            website: item.website || item.url || null,
-            rating: item.rating ? Number(item.rating) : null,
-            rating_count: item.rating_count || item.reviews_count || item.review_count || null,
+            company_name: item.company_name || item.companyName || item.name || item.title || item.business_name || item.businessName || '—',
+            verified: item.verified ?? item.is_verified ?? item.isVerified ?? false,
+            phone: item.phone || item.phone_number || item.phoneNumber || item.telephone || null,
+            email: item.email || item.emailAddress || item.email_address || null,
+            website: item.website || item.url || item.site || item.web || item.link || null,
+            rating: item.rating ? Number(item.rating) : (item.stars ? Number(item.stars) : null),
+            rating_count: item.rating_count || item.ratingCount || item.reviews_count || item.reviewsCount || item.review_count || item.reviewCount || item.totalReviews || null,
           }))
         : [];
+
+      setProgress(100);
+      clearInterval(progressInterval);
 
       if (results.length === 0) {
         toast({
@@ -90,6 +107,7 @@ export default function MapsScraper() {
           variant: 'destructive',
         });
         setIsLoading(false);
+        setProgress(0);
         return;
       }
 
@@ -109,6 +127,7 @@ export default function MapsScraper() {
       navigate('/results');
     } catch (error) {
       console.error('Scrape error:', error);
+      clearInterval(progressInterval);
       toast({
         title: 'Scrape failed',
         description: 'Could not reach the scraping service. Please try again.',
@@ -116,6 +135,7 @@ export default function MapsScraper() {
       });
     } finally {
       setIsLoading(false);
+      setProgress(0);
     }
   };
 
@@ -240,6 +260,19 @@ export default function MapsScraper() {
               </>
             )}
           </Button>
+
+          {/* Progress Bar */}
+          {isLoading && (
+            <div className="space-y-2 animate-in">
+              <Progress value={progress} className="h-2" />
+              <p className="text-xs text-muted-foreground text-center">
+                {progress < 30 && 'Connecting to scraper...'}
+                {progress >= 30 && progress < 60 && 'Fetching business data...'}
+                {progress >= 60 && progress < 90 && 'Processing results...'}
+                {progress >= 90 && 'Almost done...'}
+              </p>
+            </div>
+          )}
         </form>
       </div>
     </DashboardLayout>
