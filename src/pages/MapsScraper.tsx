@@ -79,22 +79,74 @@ export default function MapsScraper() {
       }
 
       const data = await response.json();
-      
+
       // Log the raw response for debugging
       console.log('Webhook response:', data);
-      
+
       // Map webhook response to ScraperResult format
-      // Handles various field naming conventions from n8n workflows
-      const results: ScraperResult[] = Array.isArray(data) 
-        ? data.map((item: any) => ({
-            company_name: item.company_name || item.companyName || item.name || item.title || item.business_name || item.businessName || '—',
-            verified: item.verified ?? item.is_verified ?? item.isVerified ?? false,
-            phone: item.phone || item.phone_number || item.phoneNumber || item.telephone || null,
-            email: item.email || item.emailAddress || item.email_address || null,
-            website: item.website || item.url || item.site || item.web || item.link || null,
-            rating: item.rating ? Number(item.rating) : (item.stars ? Number(item.stars) : null),
-            rating_count: item.rating_count || item.ratingCount || item.reviews_count || item.reviewsCount || item.review_count || item.reviewCount || item.totalReviews || null,
-          }))
+      // Supports both our internal keys and the current n8n output keys (e.g. "Business Name")
+      const results: ScraperResult[] = Array.isArray(data)
+        ? data.map((item: any) => {
+            const companyName =
+              item.company_name ??
+              item.companyName ??
+              item.business_name ??
+              item.businessName ??
+              item.name ??
+              item.title ??
+              item['Business Name'] ??
+              '—';
+
+            const verificationRaw =
+              item.verified ?? item.is_verified ?? item.isVerified ?? item.Verification ?? item['Verification'];
+
+            const verified =
+              typeof verificationRaw === 'boolean'
+                ? verificationRaw
+                : typeof verificationRaw === 'string'
+                  ? verificationRaw.toLowerCase().includes('verified')
+                  : false;
+
+            const phone =
+              item.phone ?? item.phone_number ?? item.phoneNumber ?? item.telephone ?? item['Phone Number'] ?? null;
+
+            const email = item.email ?? item.emailAddress ?? item.email_address ?? null;
+
+            const website =
+              item.website ?? item.url ?? item.site ?? item.web ?? item.link ?? item['Website'] ?? null;
+
+            const rating =
+              item.rating != null
+                ? Number(item.rating)
+                : item.stars != null
+                  ? Number(item.stars)
+                  : item['Rating'] != null
+                    ? Number(item['Rating'])
+                    : null;
+
+            const ratingCountRaw =
+              item.rating_count ??
+              item.ratingCount ??
+              item.reviews_count ??
+              item.reviewsCount ??
+              item.review_count ??
+              item.reviewCount ??
+              item.totalReviews ??
+              item['Rating Count'] ??
+              null;
+
+            const rating_count = ratingCountRaw != null ? Number(ratingCountRaw) : null;
+
+            return {
+              company_name: companyName,
+              verified,
+              phone,
+              email,
+              website,
+              rating: Number.isFinite(rating as number) ? rating : null,
+              rating_count: Number.isFinite(rating_count as number) ? rating_count : null,
+            };
+          })
         : [];
 
       setProgress(100);
@@ -266,6 +318,8 @@ export default function MapsScraper() {
             <div className="space-y-2 animate-in">
               <Progress value={progress} className="h-2" />
               <p className="text-xs text-muted-foreground text-center">
+                {Math.round(progress)}%
+                <span className="mx-2">•</span>
                 {progress < 30 && 'Connecting to scraper...'}
                 {progress >= 30 && progress < 60 && 'Fetching business data...'}
                 {progress >= 60 && progress < 90 && 'Processing results...'}
