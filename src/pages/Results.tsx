@@ -21,7 +21,7 @@ import { Link } from 'react-router-dom';
 const ITEMS_PER_PAGE = 10;
 
 export default function Results() {
-  const { results, addActivity, credits, setCredits } = useApp();
+  const { results, addActivity, credits } = useApp();
   const { toast } = useToast();
   const [currentPage, setCurrentPage] = useState(1);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
@@ -68,7 +68,8 @@ export default function Results() {
     }
 
     const exportCost = 5;
-    if (credits < exportCost) {
+    // Client-side check is just for UX - exports don't currently deduct server-side
+    if (credits !== null && credits < exportCost) {
       toast({
         title: 'Insufficient credits',
         description: 'Please add more credits to export.',
@@ -109,7 +110,8 @@ export default function Results() {
     a.click();
     URL.revokeObjectURL(url);
 
-    setCredits(credits - exportCost);
+    // Note: For full security, export credit deduction should also be server-side
+    // Currently exports are client-only operations
     addActivity({
       type: 'export',
       description: `Exported ${filteredResults.length} results to ${format.toUpperCase()}`,

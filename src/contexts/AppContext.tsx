@@ -1,11 +1,14 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { User } from '@supabase/supabase-js';
 import { ScraperResult, RecentActivity } from '@/types/scraper';
 import { useAuth } from '@/hooks/useAuth';
+import { useCredits } from '@/hooks/useCredits';
 
 interface AppContextType {
-  credits: number;
-  setCredits: (credits: number) => void;
+  credits: number | null;
+  creditsLoading: boolean;
+  updateCredits: (credits: number) => void;
+  refetchCredits: () => Promise<void>;
   results: ScraperResult[];
   setResults: (results: ScraperResult[]) => void;
   recentActivity: RecentActivity[];
@@ -22,7 +25,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading, signOut } = useAuth();
-  const [credits, setCredits] = useState(500);
+  const { credits, loading: creditsLoading, refetchCredits, updateLocalCredits } = useCredits();
   const [results, setResults] = useState<ScraperResult[]>([]);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([
     {
@@ -57,7 +60,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider
       value={{
         credits,
-        setCredits,
+        creditsLoading,
+        updateCredits: updateLocalCredits,
+        refetchCredits,
         results,
         setResults,
         recentActivity,
