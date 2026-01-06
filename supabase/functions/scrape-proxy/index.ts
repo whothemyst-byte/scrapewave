@@ -111,8 +111,17 @@ Deno.serve(async (req) => {
 
     console.log('Credits deducted. New balance:', deductionResult.new_balance);
 
-    // Get webhook secret for authentication
+    // Get webhook secret for authentication - MANDATORY
     const webhookSecret = Deno.env.get('N8N_WEBHOOK_SECRET');
+    if (!webhookSecret) {
+      console.error('N8N_WEBHOOK_SECRET is not configured');
+      // Refund credits since we cannot proceed
+      await supabaseAdmin.rpc('refund_credits', { p_user_id: userId, p_amount: estimatedCost });
+      return new Response(
+        JSON.stringify({ error: 'Service configuration error' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     // Determine webhook URL
     const webhookUrl = verifiedOnly
@@ -121,12 +130,12 @@ Deno.serve(async (req) => {
 
     console.log('Calling webhook:', webhookUrl);
 
-    // Call the n8n webhook with authentication
+    // Call the n8n webhook with mandatory authentication
     const webhookResponse = await fetch(webhookUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(webhookSecret && { 'Authorization': `Bearer ${webhookSecret}` }),
+        'Authorization': `Bearer ${webhookSecret}`,
       },
       body: JSON.stringify({
         category: category.trim(),
@@ -138,11 +147,8 @@ Deno.serve(async (req) => {
 
     if (!webhookResponse.ok) {
       console.error('Webhook failed with status:', webhookResponse.status);
-      // Refund credits if webhook fails (using admin client)
-      await supabaseAdmin
-        .from('user_credits')
-        .update({ balance: deductionResult.new_balance + estimatedCost })
-        .eq('user_id', userId);
+      // Refund credits using proper RPC function with locking
+      await supabaseAdmin.rpc('refund_credits', { p_user_id: userId, p_amount: estimatedCost });
       
       return new Response(
         JSON.stringify({ error: 'Scraping service unavailable' }),

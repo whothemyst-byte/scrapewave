@@ -78,6 +78,14 @@ export type Database = {
           success: boolean
         }[]
       }
+      refund_credits: {
+        Args: { p_amount: number; p_user_id: string }
+        Returns: {
+          message: string
+          new_balance: number
+          success: boolean
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
