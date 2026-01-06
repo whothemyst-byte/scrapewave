@@ -1,7 +1,10 @@
 project_id = "wshbbyveazxlmxklryie"
 
-[functions.scrape-proxy]
+[functions.admin-search-user]
 verify_jwt = false
 
 [functions.export-data]
+verify_jwt = false
+
+[functions.scrape-proxy]
 verify_jwt = false
