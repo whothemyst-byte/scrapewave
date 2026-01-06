@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { useApp } from '@/contexts/AppContext';
 import { useToast } from '@/hooks/use-toast';
 import { Map, Loader2, ChevronDown, ChevronUp, Zap, Info, ShieldCheck, Layers } from 'lucide-react';
 import { ScraperResult } from '@/types/scraper';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function MapsScraper() {
   const [category, setCategory] = useState('');
@@ -19,7 +20,7 @@ export default function MapsScraper() {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  const { setResults, addActivity, credits, setCredits } = useApp();
+  const { setResults, addActivity, credits, updateCredits } = useApp();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -37,10 +38,30 @@ export default function MapsScraper() {
       return;
     }
 
-    if (credits < estimatedCost) {
+    // Client-side check is just for UX - real validation happens server-side
+    if (credits !== null && credits < estimatedCost) {
       toast({
         title: 'Insufficient credits',
         description: 'Please add more credits to continue.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate input length client-side for UX
+    if (category.trim().length > 100) {
+      toast({
+        title: 'Category too long',
+        description: 'Please use a shorter category name (max 100 characters).',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (location.trim().length > 200) {
+      toast({
+        title: 'Location too long',
+        description: 'Please use a shorter location (max 200 characters).',
         variant: 'destructive',
       });
       return;
@@ -58,31 +79,48 @@ export default function MapsScraper() {
     }, 500);
 
     try {
-      // Use different webhook based on verified toggle
-      const webhookUrl = verifiedOnly
-        ? 'https://maddy264m.app.n8n.cloud/webhook-test/scrape-companies-validation'
-        : 'https://maddy264m.app.n8n.cloud/webhook/scrape-companies';
-
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      // Call the secure edge function instead of direct webhook
+      const { data: response, error: invokeError } = await supabase.functions.invoke('scrape-proxy', {
+        body: {
           category: category.trim(),
           location: location.trim(),
           maxResults: maxResults,
-        }),
+          verifiedOnly: verifiedOnly,
+        },
       });
 
-      if (!response.ok) {
-        throw new Error('Scrape failed');
+      if (invokeError) {
+        throw new Error(invokeError.message || 'Scrape failed');
       }
 
-      const data = await response.json();
+      if (!response) {
+        throw new Error('No response from server');
+      }
 
-      // Log the raw response for debugging
-      console.log('Webhook response:', data);
+      // Handle insufficient credits response
+      if (response.error) {
+        if (response.error === 'Insufficient credits') {
+          toast({
+            title: 'Insufficient credits',
+            description: 'Please add more credits to continue.',
+            variant: 'destructive',
+          });
+          if (response.currentBalance !== undefined) {
+            updateCredits(response.currentBalance);
+          }
+          setIsLoading(false);
+          setProgress(0);
+          return;
+        }
+        throw new Error(response.error);
+      }
+
+      const data = response.results;
+
+      // Update credits with the new balance from server
+      if (response.newBalance !== undefined) {
+        updateCredits(response.newBalance);
+      }
 
       // Map webhook response to ScraperResult format
       // Supports both our internal keys and the current n8n output keys (e.g. "Business Name")
@@ -165,7 +203,7 @@ export default function MapsScraper() {
       }
 
       setResults(results);
-      setCredits(credits - estimatedCost);
+      // Credits are already updated by the server response earlier in the flow
       addActivity({
         type: 'scrape',
         description: `Maps Scraper - "${category}" in "${location}"`,
