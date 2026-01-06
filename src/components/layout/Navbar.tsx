@@ -91,7 +91,7 @@ export function Navbar() {
               <>
                 <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary border border-border">
                   <Zap className="w-4 h-4 text-primary" />
-                  <span className="text-sm font-medium">{credits.toLocaleString()}</span>
+                  <span className="text-sm font-medium">{(credits ?? 0).toLocaleString()}</span>
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -181,7 +181,7 @@ export function Navbar() {
                 </Link>
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary">
                   <Zap className="w-4 h-4 text-primary" />
-                  <span className="text-sm font-medium">{credits.toLocaleString()} credits</span>
+                  <span className="text-sm font-medium">{(credits ?? 0).toLocaleString()} credits</span>
                 </div>
                 <Link
                   to="/dashboard"
