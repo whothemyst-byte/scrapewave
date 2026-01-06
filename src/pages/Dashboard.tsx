@@ -9,7 +9,7 @@ export default function Dashboard() {
   const { credits, results, recentActivity } = useApp();
 
   const quickStats = [
-    { label: 'Available Credits', value: credits.toLocaleString(), icon: Zap },
+    { label: 'Available Credits', value: (credits ?? 0).toLocaleString(), icon: Zap },
     { label: 'Results Collected', value: results.length.toString(), icon: FileText },
   ];
 
