@@ -75,17 +75,42 @@ export function useProfile() {
       return { error: uploadError, url: null };
     }
 
-    const { data: { publicUrl } } = supabase.storage
+    // Use signed URL for private bucket (1 hour expiry)
+    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
       .from('avatars')
-      .getPublicUrl(filePath);
+      .createSignedUrl(filePath, 3600);
 
-    // Add cache-busting query param
-    const avatarUrl = `${publicUrl}?t=${Date.now()}`;
+    if (signedUrlError || !signedUrlData?.signedUrl) {
+      return { error: signedUrlError || new Error('Failed to create signed URL'), url: null };
+    }
 
-    // Update profile with new avatar URL
+    const avatarUrl = signedUrlData.signedUrl;
+
+    // Update profile with new signed avatar URL
     const { error: updateError } = await updateProfile({ avatar_url: avatarUrl });
 
     return { error: updateError, url: avatarUrl };
+  };
+
+  // Helper to refresh avatar URL (for when signed URL expires)
+  const refreshAvatarUrl = async () => {
+    if (!user || !profile?.avatar_url) return null;
+    
+    // Extract the file path from the current URL
+    const fileExt = profile.avatar_url.includes('.png') ? 'png' : 
+                    profile.avatar_url.includes('.jpg') ? 'jpg' : 
+                    profile.avatar_url.includes('.jpeg') ? 'jpeg' : 
+                    profile.avatar_url.includes('.gif') ? 'gif' : 'png';
+    const filePath = `${user.id}/avatar.${fileExt}`;
+    
+    const { data, error } = await supabase.storage
+      .from('avatars')
+      .createSignedUrl(filePath, 3600);
+    
+    if (error || !data?.signedUrl) return null;
+    
+    await updateProfile({ avatar_url: data.signedUrl });
+    return data.signedUrl;
   };
 
   return {
@@ -94,5 +119,6 @@ export function useProfile() {
     fetchProfile,
     updateProfile,
     uploadAvatar,
+    refreshAvatarUrl,
   };
 }
