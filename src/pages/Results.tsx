@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { useApp } from '@/contexts/AppContext';
 import { useToast } from '@/hooks/use-toast';
+import { useCredits } from '@/hooks/useCredits';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Table,
   TableBody,
@@ -15,14 +17,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Download, FileJson, ExternalLink, Check, X, ChevronLeft, ChevronRight, Search, Globe, Phone } from 'lucide-react';
+import { Download, FileJson, ExternalLink, Check, X, ChevronLeft, ChevronRight, Search, Globe, Phone, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const ITEMS_PER_PAGE = 10;
 
 export default function Results() {
-  const { results, addActivity, credits } = useApp();
+  const { results, addActivity } = useApp();
+  const { credits, refetchCredits } = useCredits();
   const { toast } = useToast();
+  const [isExporting, setIsExporting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,7 +61,7 @@ export default function Results() {
     currentPage * ITEMS_PER_PAGE
   );
 
-  const handleExport = (format: 'csv' | 'json') => {
+  const handleExport = async (format: 'csv' | 'json') => {
     if (filteredResults.length === 0) {
       toast({
         title: 'No results',
@@ -67,61 +71,76 @@ export default function Results() {
       return;
     }
 
-    const exportCost = 5;
-    // Client-side check is just for UX - exports don't currently deduct server-side
-    if (credits !== null && credits < exportCost) {
+    // Client-side check for UX feedback before server call
+    if (credits !== null && credits < 5) {
       toast({
         title: 'Insufficient credits',
-        description: 'Please add more credits to export.',
+        description: 'You need at least 5 credits to export. Please add more credits.',
         variant: 'destructive',
       });
       return;
     }
 
-    let content: string;
-    let filename: string;
-    let mimeType: string;
+    setIsExporting(true);
 
-    if (format === 'csv') {
-      const headers = ['Company Name', 'Verified', 'Phone', 'Email', 'Website', 'Rating', 'Rating Count'];
-      const rows = filteredResults.map((r) => [
-        r.company_name,
-        r.verified ? 'Yes' : 'No',
-        r.phone || '',
-        r.email || '',
-        r.website || '',
-        r.rating?.toString() || '',
-        r.rating_count?.toString() || '',
-      ]);
-      content = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-      filename = 'scrapewave-results.csv';
-      mimeType = 'text/csv';
-    } else {
-      content = JSON.stringify(filteredResults, null, 2);
-      filename = 'scrapewave-results.json';
-      mimeType = 'application/json';
+    try {
+      const { data, error } = await supabase.functions.invoke('export-data', {
+        body: {
+          results: filteredResults,
+          format,
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data || data.error) {
+        // Handle insufficient credits from server
+        if (data?.error === 'Insufficient credits') {
+          toast({
+            title: 'Insufficient credits',
+            description: 'Please add more credits to export.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        throw new Error(data?.error || 'Export failed');
+      }
+
+      // Create and download the file
+      const blob = new Blob([data.content], { type: data.mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = data.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      // Refresh credits to show updated balance
+      refetchCredits();
+
+      // Log activity (for local tracking)
+      addActivity({
+        type: 'export',
+        description: `Exported ${data.resultCount} results to ${format.toUpperCase()}`,
+        credits_used: data.creditsUsed,
+      });
+
+      toast({
+        title: 'Export complete',
+        description: `Downloaded ${data.filename} (${data.creditsUsed} credits used)`,
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: 'Export failed',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
     }
-
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-
-    // Note: For full security, export credit deduction should also be server-side
-    // Currently exports are client-only operations
-    addActivity({
-      type: 'export',
-      description: `Exported ${filteredResults.length} results to ${format.toUpperCase()}`,
-      credits_used: exportCost,
-    });
-
-    toast({
-      title: 'Export complete',
-      description: `Downloaded ${filename}`,
-    });
   };
 
   // Reset to page 1 when any filter changes
@@ -166,12 +185,12 @@ export default function Results() {
 
           {results.length > 0 && (
             <div className="flex flex-wrap items-center gap-3">
-              <Button variant="outline" onClick={() => handleExport('csv')}>
-                <Download className="w-4 h-4" />
+              <Button variant="outline" onClick={() => handleExport('csv')} disabled={isExporting}>
+                {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                 Export CSV
               </Button>
-              <Button variant="outline" onClick={() => handleExport('json')}>
-                <FileJson className="w-4 h-4" />
+              <Button variant="outline" onClick={() => handleExport('json')} disabled={isExporting}>
+                {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileJson className="w-4 h-4" />}
                 Export JSON
               </Button>
             </div>
