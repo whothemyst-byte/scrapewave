@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { User } from '@supabase/supabase-js';
 import { ScraperResult, RecentActivity } from '@/types/scraper';
+import { useAuth } from '@/hooks/useAuth';
 
 interface AppContextType {
   credits: number;
@@ -9,7 +11,9 @@ interface AppContextType {
   recentActivity: RecentActivity[];
   addActivity: (activity: Omit<RecentActivity, 'id' | 'timestamp'>) => void;
   isAuthenticated: boolean;
-  setIsAuthenticated: (auth: boolean) => void;
+  user: User | null;
+  authLoading: boolean;
+  signOut: () => Promise<{ error: Error | null }>;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
 }
@@ -17,6 +21,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const { user, loading: authLoading, signOut } = useAuth();
   const [credits, setCredits] = useState(500);
   const [results, setResults] = useState<ScraperResult[]>([]);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([
@@ -35,8 +40,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       credits_used: 5,
     },
   ]);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const isAuthenticated = !!user;
 
   const addActivity = (activity: Omit<RecentActivity, 'id' | 'timestamp'>) => {
     const newActivity: RecentActivity = {
@@ -57,7 +63,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         recentActivity,
         addActivity,
         isAuthenticated,
-        setIsAuthenticated,
+        user,
+        authLoading,
+        signOut,
         isLoading,
         setIsLoading,
       }}

@@ -1,15 +1,35 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useApp } from '@/contexts/AppContext';
-import { Zap, Menu, X } from 'lucide-react';
+import { Zap, Menu, X, LogOut } from 'lucide-react';
 import { useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
 
 export function Navbar() {
-  const { credits, isAuthenticated } = useApp();
+  const { credits, isAuthenticated, signOut } = useApp();
   const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const isLanding = location.pathname === '/';
+
+  const handleSignOut = async () => {
+    const { error } = await signOut();
+    if (error) {
+      toast({
+        title: "Sign out failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Signed out",
+        description: "You've been signed out successfully.",
+      });
+      navigate('/');
+    }
+  };
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border/50">
@@ -64,10 +84,21 @@ export function Navbar() {
           {/* Right side */}
           <div className="flex items-center gap-4">
             {isAuthenticated && !isLanding && (
-              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary border border-border">
-                <Zap className="w-4 h-4 text-primary" />
-                <span className="text-sm font-medium">{credits.toLocaleString()}</span>
-              </div>
+              <>
+                <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary border border-border">
+                  <Zap className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-medium">{credits.toLocaleString()}</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSignOut}
+                  className="hidden md:flex items-center gap-2"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Sign Out
+                </Button>
+              </>
             )}
 
             {isLanding && (
@@ -145,6 +176,17 @@ export function Navbar() {
                 >
                   Developer
                 </Link>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start px-3"
+                  onClick={() => {
+                    handleSignOut();
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Sign Out
+                </Button>
               </>
             ) : (
               <>
