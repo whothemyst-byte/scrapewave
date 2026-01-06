@@ -1,12 +1,16 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useApp } from '@/contexts/AppContext';
-import { Zap, Menu, X, LogOut } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Zap, Menu, X, LogOut, User, Settings } from 'lucide-react';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { useProfile } from '@/hooks/useProfile';
 
 export function Navbar() {
-  const { credits, isAuthenticated, signOut } = useApp();
+  const { credits, isAuthenticated, signOut, user } = useApp();
+  const { profile } = useProfile();
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -89,15 +93,36 @@ export function Navbar() {
                   <Zap className="w-4 h-4 text-primary" />
                   <span className="text-sm font-medium">{credits.toLocaleString()}</span>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleSignOut}
-                  className="hidden md:flex items-center gap-2"
-                >
-                  <LogOut className="w-4 h-4" />
-                  Sign Out
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="hidden md:flex items-center gap-2 p-1 rounded-full hover:bg-accent transition-colors">
+                      <Avatar className="w-8 h-8 border border-border">
+                        <AvatarImage src={profile?.avatar_url || undefined} alt="Avatar" />
+                        <AvatarFallback className="text-xs bg-primary/10">
+                          {profile?.display_name
+                            ? profile.display_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+                            : user?.email?.charAt(0).toUpperCase() || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                      {profile?.display_name && (
+                        <span className="text-sm font-medium max-w-[120px] truncate">
+                          {profile.display_name}
+                        </span>
+                      )}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem onClick={() => navigate('/profile')}>
+                      <User className="w-4 h-4 mr-2" />
+                      Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleSignOut}>
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Sign Out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </>
             )}
 
@@ -137,6 +162,23 @@ export function Navbar() {
           <div className="container mx-auto px-4 py-4 space-y-3">
             {isAuthenticated ? (
               <>
+                <Link
+                  to="/profile"
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Avatar className="w-8 h-8 border border-border">
+                    <AvatarImage src={profile?.avatar_url || undefined} alt="Avatar" />
+                    <AvatarFallback className="text-xs bg-primary/10">
+                      {profile?.display_name
+                        ? profile.display_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+                        : user?.email?.charAt(0).toUpperCase() || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm font-medium">
+                    {profile?.display_name || user?.email}
+                  </span>
+                </Link>
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary">
                   <Zap className="w-4 h-4 text-primary" />
                   <span className="text-sm font-medium">{credits.toLocaleString()} credits</span>

@@ -12,8 +12,8 @@ import MapsScraper from "./pages/MapsScraper";
 import Results from "./pages/Results";
 import Billing from "./pages/Billing";
 import Developer from "./pages/Developer";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
-
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -32,6 +32,7 @@ const App = () => (
             <Route path="/results" element={<Results />} />
             <Route path="/billing" element={<Billing />} />
             <Route path="/developer" element={<Developer />} />
+            <Route path="/profile" element={<Profile />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
