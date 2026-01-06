@@ -71,6 +71,7 @@ export default function MapsScraper() {
         body: JSON.stringify({
           category: category.trim(),
           location: location.trim(),
+          maxResults: maxResults,
         }),
       });
 
