@@ -123,10 +123,20 @@ Deno.serve(async (req) => {
       );
     }
     
-    // Determine webhook URL
-    const webhookUrl = verifiedOnly
-      ? 'https://maddy264m.app.n8n.cloud/webhook-test/scrape-companies-validation'
-      : 'https://maddy264m.app.n8n.cloud/webhook/scrape-companies';
+    // Get webhook URLs from environment variables
+    const webhookUrlVerified = Deno.env.get('N8N_WEBHOOK_URL_VERIFIED');
+    const webhookUrlStandard = Deno.env.get('N8N_WEBHOOK_URL');
+    
+    if (!webhookUrlStandard || !webhookUrlVerified) {
+      console.error('Webhook URLs not configured');
+      await supabaseAdmin.rpc('refund_credits', { p_user_id: userId, p_amount: estimatedCost });
+      return new Response(
+        JSON.stringify({ error: 'Service configuration error' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    const webhookUrl = verifiedOnly ? webhookUrlVerified : webhookUrlStandard;
 
     console.log('Calling webhook:', webhookUrl);
 
