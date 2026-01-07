@@ -36,11 +36,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Download, FileJson, ExternalLink, Check, X, ChevronLeft, ChevronRight, Search, Filter, Info, Loader2 } from 'lucide-react';
+import { Download, FileJson, ExternalLink, Check, X, ChevronLeft, ChevronRight, Search, Filter, Info, Loader2, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 type RatingFilter = 'all' | '4plus' | '3plus' | 'below3';
 type VerificationFilter = 'all' | 'verified' | 'unverified';
+type SortKey = 'company_name' | 'rating' | 'rating_count' | null;
+type SortDirection = 'asc' | 'desc';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -51,18 +53,26 @@ export default function Results() {
   const [isExporting, setIsExporting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  
+
   // Active (applied) filters
   const [searchQuery, setSearchQuery] = useState('');
   const [ratingFilter, setRatingFilter] = useState<RatingFilter>('all');
   const [verificationFilter, setVerificationFilter] = useState<VerificationFilter>('all');
-  
+  const [hasWebsiteFilter, setHasWebsiteFilter] = useState(false);
+  const [hasPhoneFilter, setHasPhoneFilter] = useState(false);
+
   // Pending (drawer) filters
   const [pendingRating, setPendingRating] = useState<RatingFilter>('all');
   const [pendingVerification, setPendingVerification] = useState<VerificationFilter>('all');
+  const [pendingHasWebsite, setPendingHasWebsite] = useState(false);
+  const [pendingHasPhone, setPendingHasPhone] = useState(false);
+
+  // Sorting
+  const [sortKey, setSortKey] = useState<SortKey>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   const filteredResults = useMemo(() => {
-    return results.filter((r) => {
+    let filtered = results.filter((r) => {
       // Verification filter
       if (verificationFilter === 'verified' && !r.verified) return false;
       if (verificationFilter === 'unverified' && r.verified) return false;
@@ -75,9 +85,38 @@ export default function Results() {
         if (ratingFilter === '3plus' && r.rating < 3) return false;
         if (ratingFilter === 'below3' && r.rating >= 3) return false;
       }
+      // Has Website filter
+      if (hasWebsiteFilter && !r.website) return false;
+      // Has Phone filter
+      if (hasPhoneFilter && !r.phone) return false;
       return true;
     });
-  }, [results, verificationFilter, searchQuery, ratingFilter]);
+
+    // Apply sorting
+    if (sortKey) {
+      filtered = [...filtered].sort((a, b) => {
+        let aVal = a[sortKey];
+        let bVal = b[sortKey];
+
+        // Handle nulls - push to end
+        if (aVal == null && bVal == null) return 0;
+        if (aVal == null) return 1;
+        if (bVal == null) return -1;
+
+        // String comparison for company_name
+        if (sortKey === 'company_name') {
+          aVal = (aVal as string).toLowerCase();
+          bVal = (bVal as string).toLowerCase();
+        }
+
+        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [results, verificationFilter, searchQuery, ratingFilter, hasWebsiteFilter, hasPhoneFilter, sortKey, sortDirection]);
 
   const totalPages = Math.ceil(filteredResults.length / ITEMS_PER_PAGE);
   const paginatedResults = filteredResults.slice(
@@ -178,6 +217,8 @@ export default function Results() {
   const handleApplyFilters = () => {
     setRatingFilter(pendingRating);
     setVerificationFilter(pendingVerification);
+    setHasWebsiteFilter(pendingHasWebsite);
+    setHasPhoneFilter(pendingHasPhone);
     setIsFilterOpen(false);
     resetPage();
   };
@@ -185,8 +226,12 @@ export default function Results() {
   const handleClearFilters = () => {
     setPendingRating('all');
     setPendingVerification('all');
+    setPendingHasWebsite(false);
+    setPendingHasPhone(false);
     setRatingFilter('all');
     setVerificationFilter('all');
+    setHasWebsiteFilter(false);
+    setHasPhoneFilter(false);
     setIsFilterOpen(false);
     resetPage();
   };
@@ -196,6 +241,8 @@ export default function Results() {
       // Sync pending with current when opening
       setPendingRating(ratingFilter);
       setPendingVerification(verificationFilter);
+      setPendingHasWebsite(hasWebsiteFilter);
+      setPendingHasPhone(hasPhoneFilter);
     }
     setIsFilterOpen(open);
   };
@@ -212,7 +259,40 @@ export default function Results() {
     resetPage();
   };
 
-  const hasActiveFilters = ratingFilter !== 'all' || verificationFilter !== 'all';
+  const removeHasWebsiteFilter = () => {
+    setHasWebsiteFilter(false);
+    setPendingHasWebsite(false);
+    resetPage();
+  };
+
+  const removeHasPhoneFilter = () => {
+    setHasPhoneFilter(false);
+    setPendingHasPhone(false);
+    resetPage();
+  };
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      // Toggle direction or clear
+      if (sortDirection === 'desc') {
+        setSortDirection('asc');
+      } else {
+        setSortKey(null);
+      }
+    } else {
+      setSortKey(key);
+      setSortDirection('desc');
+    }
+  };
+
+  const getSortIcon = (key: SortKey) => {
+    if (sortKey !== key) return <ArrowUpDown className="w-4 h-4 ml-1 opacity-50" />;
+    return sortDirection === 'asc'
+      ? <ArrowUp className="w-4 h-4 ml-1" />
+      : <ArrowDown className="w-4 h-4 ml-1" />;
+  };
+
+  const hasActiveFilters = ratingFilter !== 'all' || verificationFilter !== 'all' || hasWebsiteFilter || hasPhoneFilter;
 
   const getRatingLabel = (filter: RatingFilter) => {
     switch (filter) {
@@ -278,7 +358,7 @@ export default function Results() {
                     Filters
                     {hasActiveFilters && (
                       <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 justify-center text-xs">
-                        {(ratingFilter !== 'all' ? 1 : 0) + (verificationFilter !== 'all' ? 1 : 0)}
+                        {(ratingFilter !== 'all' ? 1 : 0) + (verificationFilter !== 'all' ? 1 : 0) + (hasWebsiteFilter ? 1 : 0) + (hasPhoneFilter ? 1 : 0)}
                       </Badge>
                     )}
                   </Button>
@@ -321,6 +401,30 @@ export default function Results() {
                       <p className="text-xs text-muted-foreground">Verified = rating is 3 stars or above</p>
                     </div>
 
+                    {/* Has Website Filter */}
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <label className="text-sm font-medium">Has Website</label>
+                        <p className="text-xs text-muted-foreground">Only show results with a website</p>
+                      </div>
+                      <Switch
+                        checked={pendingHasWebsite}
+                        onCheckedChange={setPendingHasWebsite}
+                      />
+                    </div>
+
+                    {/* Has Phone Filter */}
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <label className="text-sm font-medium">Has Phone</label>
+                        <p className="text-xs text-muted-foreground">Only show results with a phone number</p>
+                      </div>
+                      <Switch
+                        checked={pendingHasPhone}
+                        onCheckedChange={setPendingHasPhone}
+                      />
+                    </div>
+
                     {/* Action Buttons */}
                     <div className="flex gap-3 mt-4">
                       <Button onClick={handleApplyFilters} className="flex-1">
@@ -354,6 +458,22 @@ export default function Results() {
                     </button>
                   </Badge>
                 )}
+                {hasWebsiteFilter && (
+                  <Badge variant="secondary" className="gap-1 pr-1">
+                    Has Website
+                    <button onClick={removeHasWebsiteFilter} className="ml-1 hover:bg-muted rounded p-0.5">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </Badge>
+                )}
+                {hasPhoneFilter && (
+                  <Badge variant="secondary" className="gap-1 pr-1">
+                    Has Phone
+                    <button onClick={removeHasPhoneFilter} className="ml-1 hover:bg-muted rounded p-0.5">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </Badge>
+                )}
                 <button onClick={handleClearFilters} className="text-xs text-muted-foreground hover:text-foreground underline">
                   Clear all filters
                 </button>
@@ -366,7 +486,15 @@ export default function Results() {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-border hover:bg-transparent">
-                      <TableHead className="text-muted-foreground">Company Name</TableHead>
+                      <TableHead className="text-muted-foreground">
+                        <button
+                          onClick={() => handleSort('company_name')}
+                          className="inline-flex items-center hover:text-foreground transition-colors"
+                        >
+                          Company Name
+                          {getSortIcon('company_name')}
+                        </button>
+                      </TableHead>
                       <TableHead className="text-muted-foreground">
                         <TooltipProvider>
                           <Tooltip>
@@ -385,8 +513,24 @@ export default function Results() {
                       <TableHead className="text-muted-foreground">Phone</TableHead>
                       <TableHead className="text-muted-foreground">Email</TableHead>
                       <TableHead className="text-muted-foreground">Website</TableHead>
-                      <TableHead className="text-muted-foreground">Rating</TableHead>
-                      <TableHead className="text-muted-foreground text-right">Reviews</TableHead>
+                      <TableHead className="text-muted-foreground">
+                        <button
+                          onClick={() => handleSort('rating')}
+                          className="inline-flex items-center hover:text-foreground transition-colors"
+                        >
+                          Rating
+                          {getSortIcon('rating')}
+                        </button>
+                      </TableHead>
+                      <TableHead className="text-muted-foreground text-right">
+                        <button
+                          onClick={() => handleSort('rating_count')}
+                          className="inline-flex items-center hover:text-foreground transition-colors ml-auto"
+                        >
+                          Reviews
+                          {getSortIcon('rating_count')}
+                        </button>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
