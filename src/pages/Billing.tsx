@@ -1,9 +1,12 @@
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import { useApp } from '@/contexts/AppContext';
-import { Zap, Check, Star, Building2, Rocket } from 'lucide-react';
+import { Zap, Check, Star, Building2, Rocket, Calculator } from 'lucide-react';
 import { PricingTier } from '@/types/scraper';
+import { useState } from 'react';
 
 const pricingTiers: PricingTier[] = [
   {
@@ -67,6 +70,124 @@ const creditBreakdown = [
   { action: 'Export (CSV/JSON)', cost: 5, description: 'Cost per export' },
 ];
 
+// Interactive Credits Calculator Component
+function CreditsCalculator() {
+  const [resultCount, setResultCount] = useState(50);
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [includeExport, setIncludeExport] = useState(true);
+
+  // Calculate costs
+  const baseCost = 10;
+  const perResultCost = resultCount * 0.5;
+  const verificationCost = verifiedOnly ? 10 : 0;
+  const exportCost = includeExport ? 5 : 0;
+  const totalCost = Math.ceil(baseCost + perResultCost + verificationCost + exportCost);
+
+  // Monthly estimate (assuming 10 scrapes per month)
+  const monthlyEstimate = totalCost * 10;
+
+  // Recommend a plan
+  const recommendedPlan = monthlyEstimate <= 1000 ? 'Starter'
+    : monthlyEstimate <= 5000 ? 'Creator'
+      : 'Agency';
+
+  return (
+    <div className="glass rounded-2xl p-6 mb-16 animate-in" style={{ animationDelay: '350ms' }}>
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+          <Calculator className="w-5 h-5 text-primary" />
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold">Credits Calculator</h2>
+          <p className="text-sm text-muted-foreground">Estimate your scraping costs</p>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-8">
+        {/* Controls */}
+        <div className="space-y-6">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-medium">Number of Results</label>
+              <span className="text-sm font-bold text-primary">{resultCount}</span>
+            </div>
+            <Slider
+              value={[resultCount]}
+              onValueChange={(v) => setResultCount(v[0])}
+              min={10}
+              max={500}
+              step={10}
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground mt-1">
+              <span>10</span>
+              <span>500</span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/50">
+            <div>
+              <p className="font-medium text-sm">Verified Results Only</p>
+              <p className="text-xs text-muted-foreground">Higher quality, +10 credits</p>
+            </div>
+            <Switch checked={verifiedOnly} onCheckedChange={setVerifiedOnly} />
+          </div>
+
+          <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/50">
+            <div>
+              <p className="font-medium text-sm">Include Export</p>
+              <p className="text-xs text-muted-foreground">CSV or JSON, +5 credits</p>
+            </div>
+            <Switch checked={includeExport} onCheckedChange={setIncludeExport} />
+          </div>
+        </div>
+
+        {/* Results */}
+        <div className="bg-background rounded-xl p-6 border border-border">
+          <h3 className="font-semibold mb-4">Cost Breakdown</h3>
+          <div className="space-y-3 mb-6">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Base cost</span>
+              <span>{baseCost} credits</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">{resultCount} results × 0.5</span>
+              <span>{perResultCost} credits</span>
+            </div>
+            {verifiedOnly && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Verification</span>
+                <span>{verificationCost} credits</span>
+              </div>
+            )}
+            {includeExport && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Export</span>
+                <span>{exportCost} credits</span>
+              </div>
+            )}
+            <div className="border-t border-border pt-3 flex justify-between font-semibold">
+              <span>Total per scrape</span>
+              <span className="text-primary flex items-center gap-1">
+                <Zap className="w-4 h-4" />
+                {totalCost} credits
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-primary/5 rounded-lg p-4 border border-primary/20">
+            <p className="text-xs text-muted-foreground mb-1">Monthly estimate (10 scrapes)</p>
+            <p className="text-2xl font-bold text-primary">{monthlyEstimate.toLocaleString()} credits</p>
+            <p className="text-xs text-muted-foreground mt-2">
+              We recommend the <span className="font-semibold text-foreground">{recommendedPlan}</span> plan
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Billing() {
   const { credits, isAuthenticated } = useApp();
 
@@ -102,14 +223,16 @@ export default function Billing() {
           )}
         </div>
 
+        {/* Credits Calculator */}
+        <CreditsCalculator />
+
         {/* Pricing Tiers */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
           {pricingTiers.map((tier, i) => (
             <div
               key={tier.name}
-              className={`glass rounded-2xl p-6 relative animate-in ${
-                tier.popular ? 'ring-2 ring-primary' : ''
-              }`}
+              className={`glass rounded-2xl p-6 relative animate-in ${tier.popular ? 'ring-2 ring-primary' : ''
+                }`}
               style={{ animationDelay: `${i * 100}ms` }}
             >
               {tier.popular && (

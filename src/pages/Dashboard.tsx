@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useApp } from '@/contexts/AppContext';
+import { WelcomeModal } from '@/components/onboarding/WelcomeModal';
 import { Zap, Plus, FileText, Clock, ArrowRight, Map } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -15,6 +16,8 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
+      {/* Onboarding Modal for New Users */}
+      <WelcomeModal credits={credits ?? 500} />
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8 animate-in">

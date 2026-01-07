@@ -36,19 +36,18 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    // Validate the user's JWT
-    const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    
-    if (claimsError || !claimsData?.claims) {
-      console.error('JWT validation failed:', claimsError);
+    // Validate the user's JWT and get user info
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      console.error('JWT validation failed:', userError);
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const userId = claimsData.claims.sub;
+    const userId = user.id;
     console.log('Authenticated user:', userId);
 
     // Parse request body
@@ -72,7 +71,7 @@ Deno.serve(async (req) => {
     }
 
     const validMaxResults = Math.min(Math.max(10, maxResults || 20), 500);
-    
+
     // Calculate credit cost
     const estimatedCost = Math.ceil(validMaxResults * 0.5) + (verifiedOnly ? 10 : 0);
     console.log('Estimated cost:', estimatedCost);
@@ -101,9 +100,9 @@ Deno.serve(async (req) => {
     if (!deductionResult?.success) {
       console.log('Insufficient credits:', deductionResult?.message);
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: deductionResult?.message || 'Insufficient credits',
-          currentBalance: deductionResult?.new_balance 
+          currentBalance: deductionResult?.new_balance
         }),
         { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -122,11 +121,11 @@ Deno.serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    
+
     // Get webhook URLs from environment variables
     const webhookUrlVerified = Deno.env.get('N8N_WEBHOOK_URL_VERIFIED');
     const webhookUrlStandard = Deno.env.get('N8N_WEBHOOK_URL');
-    
+
     if (!webhookUrlStandard || !webhookUrlVerified) {
       console.error('Webhook URLs not configured');
       await supabaseAdmin.rpc('refund_credits', { p_user_id: userId, p_amount: estimatedCost });
@@ -135,7 +134,7 @@ Deno.serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    
+
     const webhookUrl = verifiedOnly ? webhookUrlVerified : webhookUrlStandard;
 
     console.log('Calling webhook:', webhookUrl);
@@ -159,7 +158,7 @@ Deno.serve(async (req) => {
       console.error('Webhook failed with status:', webhookResponse.status);
       // Refund credits using proper RPC function with locking
       await supabaseAdmin.rpc('refund_credits', { p_user_id: userId, p_amount: estimatedCost });
-      
+
       return new Response(
         JSON.stringify({ error: 'Scraping service unavailable' }),
         { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
