@@ -281,7 +281,60 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* CTA Section */}
+      {/* Testimonials / Social Proof */}
+      <section className="py-20 px-4">
+        <div className="container mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Loved by Developers</h2>
+            <p className="text-muted-foreground">See what our users are saying</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              {
+                quote: "Scrapewave saved me hours of manual data collection. The verified results are incredibly accurate.",
+                author: "Alex Chen",
+                role: "Indie Hacker",
+                avatar: "AC"
+              },
+              {
+                quote: "The API is simple and the credit system is fair. We use it to power our lead generation tool.",
+                author: "Sarah Miller",
+                role: "Startup Founder",
+                avatar: "SM"
+              },
+              {
+                quote: "Finally a scraping tool that just works. The export to CSV feature is exactly what I needed.",
+                author: "Marcus Johnson",
+                role: "Data Analyst",
+                avatar: "MJ"
+              }
+            ].map((testimonial, i) => (
+              <div
+                key={testimonial.author}
+                className="glass rounded-xl p-6 animate-in"
+                style={{ animationDelay: `${i * 100}ms` }}
+              >
+                <div className="flex mb-4">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star key={star} className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                  ))}
+                </div>
+                <p className="text-muted-foreground mb-6 italic">"{testimonial.quote}"</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold">
+                    {testimonial.avatar}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">{testimonial.author}</p>
+                    <p className="text-xs text-muted-foreground">{testimonial.role}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
       <section className="py-20 px-4">
         <div className="container mx-auto max-w-3xl text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to start scraping?</h2>

@@ -9,7 +9,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="pt-16">
+      <main className="pt-16 page-transition">
         {children}
       </main>
     </div>

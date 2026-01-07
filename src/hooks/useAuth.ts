@@ -59,8 +59,19 @@ export function useAuth() {
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    return { error };
+    try {
+      // Use scope: 'local' to ensure we clear the local session even if server session is gone
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
+      // Clear local state regardless of error
+      setUser(null);
+      setSession(null);
+      return { error };
+    } catch (e) {
+      // If signOut throws, still clear local state
+      setUser(null);
+      setSession(null);
+      return { error: null };
+    }
   };
 
   const resetPassword = async (email: string) => {

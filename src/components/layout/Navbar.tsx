@@ -53,31 +53,46 @@ export function Navbar() {
               <>
                 <Link
                   to="/dashboard"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className={`text-sm transition-colors py-1 border-b-2 ${location.pathname === '/dashboard'
+                      ? 'text-foreground border-primary font-medium'
+                      : 'text-muted-foreground hover:text-foreground border-transparent'
+                    }`}
                 >
                   Dashboard
                 </Link>
                 <Link
                   to="/modules"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className={`text-sm transition-colors py-1 border-b-2 ${location.pathname.startsWith('/modules')
+                      ? 'text-foreground border-primary font-medium'
+                      : 'text-muted-foreground hover:text-foreground border-transparent'
+                    }`}
                 >
                   Modules
                 </Link>
                 <Link
                   to="/results"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className={`text-sm transition-colors py-1 border-b-2 ${location.pathname === '/results'
+                      ? 'text-foreground border-primary font-medium'
+                      : 'text-muted-foreground hover:text-foreground border-transparent'
+                    }`}
                 >
                   Results
                 </Link>
                 <Link
                   to="/billing"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className={`text-sm transition-colors py-1 border-b-2 ${location.pathname === '/billing'
+                      ? 'text-foreground border-primary font-medium'
+                      : 'text-muted-foreground hover:text-foreground border-transparent'
+                    }`}
                 >
                   Billing
                 </Link>
                 <Link
                   to="/developer"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className={`text-sm transition-colors py-1 border-b-2 ${location.pathname === '/developer'
+                      ? 'text-foreground border-primary font-medium'
+                      : 'text-muted-foreground hover:text-foreground border-transparent'
+                    }`}
                 >
                   Developer
                 </Link>
