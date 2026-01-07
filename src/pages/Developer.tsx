@@ -90,129 +90,7 @@ function generateApiKey(): string {
 
 export default function Developer() {
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
-  const [newKeyDialogOpen, setNewKeyDialogOpen] = useState(false);
-  const [newlyGeneratedKey, setNewlyGeneratedKey] = useState<string | null>(null);
-  const [showNewKey, setShowNewKey] = useState(false);
-  const [tableNotReady, setTableNotReady] = useState(false);
   const { toast } = useToast();
-  const { user } = useApp();
-
-  // Fetch API keys on mount
-  useEffect(() => {
-    if (user) {
-      fetchApiKeys();
-    }
-  }, [user]);
-
-  const fetchApiKeys = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('api_keys')
-        .select('*')
-        .eq('user_id', user?.id)
-        .is('revoked_at', null)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        // Check if the table doesn't exist yet
-        if (error.message?.includes('relation') && error.message?.includes('does not exist')) {
-          setTableNotReady(true);
-        } else {
-          console.error('Error fetching API keys:', error);
-        }
-      } else {
-        setTableNotReady(false);
-        setApiKeys(data || []);
-      }
-    } catch (err) {
-      console.error('Error:', err);
-    }
-    setLoading(false);
-  };
-
-  const handleGenerateKey = async () => {
-    if (!user) return;
-
-    setGenerating(true);
-
-    try {
-      // Generate a new key
-      const newKey = generateApiKey();
-      const keyHash = await hashApiKey(newKey);
-      const keyPrefix = newKey.substring(0, 16) + '...';
-
-      // Store the key hash in the database
-      const { error } = await supabase
-        .from('api_keys')
-        .insert({
-          user_id: user.id,
-          key_hash: keyHash,
-          key_prefix: keyPrefix,
-          name: 'Default',
-        });
-
-      if (error) {
-        throw error;
-      }
-
-      // Show the new key to the user (only once!)
-      setNewlyGeneratedKey(newKey);
-      setNewKeyDialogOpen(true);
-
-      // Refresh the list
-      fetchApiKeys();
-
-      toast({
-        title: 'API key generated',
-        description: 'Make sure to copy your key now. You won\'t be able to see it again!',
-      });
-    } catch (error: any) {
-      console.error('Error generating API key:', error);
-
-      // Check if the table doesn't exist yet
-      if (error?.message?.includes('relation') && error?.message?.includes('does not exist')) {
-        setTableNotReady(true);
-        toast({
-          title: 'Setup Required',
-          description: 'Please run the database migration first.',
-          variant: 'destructive',
-        });
-      } else {
-        toast({
-          title: 'Error',
-          description: 'Failed to generate API key. Please try again.',
-          variant: 'destructive',
-        });
-      }
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const handleRevokeKey = async (keyId: string) => {
-    const { error } = await supabase
-      .from('api_keys')
-      .update({ revoked_at: new Date().toISOString() })
-      .eq('id', keyId);
-
-    if (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to revoke API key.',
-        variant: 'destructive',
-      });
-    } else {
-      toast({
-        title: 'API key revoked',
-        description: 'The API key has been revoked and can no longer be used.',
-      });
-      fetchApiKeys();
-    }
-  };
 
   const copyToClipboard = (text: string, section: string) => {
     navigator.clipboard.writeText(text);
@@ -262,114 +140,22 @@ export default function Developer() {
             </Button>
           </div>
 
-          {/* API Keys List */}
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : tableNotReady ? (
-            <div className="text-center py-8 px-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-              <Key className="w-12 h-12 mx-auto mb-3 text-yellow-500" />
-              <p className="font-medium text-yellow-600 mb-2">Setup Required</p>
-              <p className="text-sm text-muted-foreground mb-4">
-                The API keys feature requires a database migration. Please run the migration SQL in your Supabase dashboard.
-              </p>
-              <code className="text-xs text-muted-foreground block bg-background p-2 rounded">
-                supabase/migrations/20260107120000_soft_delete_and_api_keys.sql
-              </code>
-            </div>
-          ) : apiKeys.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Key className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>No API keys yet. Generate one to get started.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {apiKeys.map((key) => (
-                <div
-                  key={key.id}
-                  className="flex items-center justify-between p-4 rounded-lg bg-background border border-border"
-                >
-                  <div className="flex items-center gap-4">
-                    <code className="text-sm font-mono text-muted-foreground">
-                      {key.key_prefix}
-                    </code>
-                    <Badge variant="secondary">{key.name}</Badge>
-                    <span className="text-xs text-muted-foreground">
-                      Created {new Date(key.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Revoke API Key?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This action cannot be undone. Any applications using this key will stop working immediately.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handleRevokeKey(key.id)}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          Revoke Key
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="flex gap-3">
+            <Input
+              type="password"
+              value="sk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              readOnly
+              className="font-mono"
+            />
+            <Button variant="outline" disabled>
+              <Copy className="w-4 h-4" />
+              Copy
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            API key generation coming soon. Contact support for early access.
+          </p>
         </div>
-
-        {/* New Key Dialog */}
-        <Dialog open={newKeyDialogOpen} onOpenChange={handleCloseNewKeyDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Your New API Key</DialogTitle>
-              <DialogDescription>
-                Copy this key now. For security reasons, you won't be able to see it again.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="flex gap-2">
-                <Input
-                  type={showNewKey ? 'text' : 'password'}
-                  value={newlyGeneratedKey || ''}
-                  readOnly
-                  className="font-mono text-sm"
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setShowNewKey(!showNewKey)}
-                >
-                  {showNewKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => newlyGeneratedKey && copyToClipboard(newlyGeneratedKey, 'newKey')}
-                >
-                  {copiedSection === 'newKey' ? (
-                    <Check className="w-4 h-4 text-success" />
-                  ) : (
-                    <Copy className="w-4 h-4" />
-                  )}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Store this key securely. Never share it or commit it to version control.
-              </p>
-            </div>
-          </DialogContent>
-        </Dialog>
 
         {/* API Usage */}
         <div className="glass rounded-2xl p-6 mb-8 animate-in" style={{ animationDelay: '200ms' }}>
