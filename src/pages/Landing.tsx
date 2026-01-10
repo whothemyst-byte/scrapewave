@@ -66,7 +66,7 @@ function InteractiveDemo() {
         <div className="w-3 h-3 rounded-full bg-red-500" />
         <div className="w-3 h-3 rounded-full bg-yellow-500" />
         <div className="w-3 h-3 rounded-full bg-green-500" />
-        <span className="ml-2 text-xs text-muted-foreground">Scrapewave Maps Scraper</span>
+        <span className="ml-2 text-xs text-muted-foreground">VeriLead Maps Scraper</span>
       </div>
 
       <div className="space-y-3 mb-4">
@@ -292,7 +292,7 @@ export default function Landing() {
           <div className="grid md:grid-cols-3 gap-6">
             {[
               {
-                quote: "Scrapewave saved me hours of manual data collection. The verified results are incredibly accurate.",
+                quote: "VeriLead saved me hours of manual data collection. The verified results are incredibly accurate.",
                 author: "Alex Chen",
                 role: "Indie Hacker",
                 avatar: "AC"
@@ -357,7 +357,7 @@ export default function Landing() {
             <div className="w-6 h-6 rounded bg-primary flex items-center justify-center">
               <Zap className="w-4 h-4 text-primary-foreground" />
             </div>
-            <span className="font-semibold">Scrapewave</span>
+            <span className="font-semibold">VeriLead</span>
           </div>
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
             <Link to="/billing" className="hover:text-foreground transition-colors">Pricing</Link>

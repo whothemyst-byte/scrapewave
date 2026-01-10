@@ -41,7 +41,7 @@ export function WelcomeModal({ credits, userName }: WelcomeModalProps) {
 
     useEffect(() => {
         // Check if user has seen the welcome modal
-        const hasSeenWelcome = localStorage.getItem('scrapewave_welcome_seen');
+        const hasSeenWelcome = localStorage.getItem('veriLead_welcome_seen');
         if (!hasSeenWelcome) {
             // Show modal after a short delay
             const timer = setTimeout(() => setIsOpen(true), 800);
@@ -50,7 +50,7 @@ export function WelcomeModal({ credits, userName }: WelcomeModalProps) {
     }, []);
 
     const handleClose = () => {
-        localStorage.setItem('scrapewave_welcome_seen', 'true');
+        localStorage.setItem('veriLead_welcome_seen', 'true');
         setIsOpen(false);
     };
 
@@ -71,7 +71,7 @@ export function WelcomeModal({ credits, userName }: WelcomeModalProps) {
                     <div className="flex items-center gap-2 mb-2">
                         <Sparkles className="w-5 h-5 text-primary" />
                         <DialogTitle className="text-xl">
-                            {userName ? `Welcome, ${userName}!` : 'Welcome to Scrapewave!'}
+                            {userName ? `Welcome, ${userName}!` : 'Welcome to VeriLead!'}
                         </DialogTitle>
                     </div>
                 </DialogHeader>
@@ -83,10 +83,10 @@ export function WelcomeModal({ credits, userName }: WelcomeModalProps) {
                             <div
                                 key={i}
                                 className={`w-2 h-2 rounded-full transition-all ${i === currentStep
-                                        ? 'w-8 bg-primary'
-                                        : i < currentStep
-                                            ? 'bg-primary/50'
-                                            : 'bg-muted'
+                                    ? 'w-8 bg-primary'
+                                    : i < currentStep
+                                        ? 'bg-primary/50'
+                                        : 'bg-muted'
                                     }`}
                             />
                         ))}

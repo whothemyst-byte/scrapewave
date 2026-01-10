@@ -20,7 +20,7 @@ import { Copy, Check, Key, Webhook, Terminal, Rocket, Sparkles } from 'lucide-re
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
-const sampleRequest = `curl -X POST https://api.scrapewave.io/v1/maps \\
+const sampleRequest = `curl -X POST https://api.veriLead.io/v1/maps \\
   -H "Authorization: Bearer sk_live_xxxx..." \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -227,7 +227,7 @@ export default function Developer() {
             <div className="flex gap-3 mb-6">
               <Input
                 type="url"
-                placeholder="https://your-app.com/webhooks/scrapewave"
+                placeholder="https://your-app.com/webhooks/veriLead"
                 className="font-mono text-sm"
               />
               <Button variant="outline" disabled>

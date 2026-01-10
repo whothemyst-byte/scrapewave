@@ -1,12 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useApp } from '@/contexts/AppContext';
 import { useToast } from '@/hooks/use-toast';
-import { useCredits } from '@/hooks/useCredits';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Table,
@@ -17,634 +15,275 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { Download, FileJson, ExternalLink, Check, X, ChevronLeft, ChevronRight, Search, Filter, Info, Loader2, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
-import { Link } from 'react-router-dom';
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Download, FileJson, Map, Calendar, Zap, Eye, Loader2, FileSpreadsheet, History } from 'lucide-react';
+import { formatDistanceToNow, format } from 'date-fns';
 
-type RatingFilter = 'all' | '4plus' | '3plus' | 'below3';
-type VerificationFilter = 'all' | 'verified' | 'unverified';
-type SortKey = 'company_name' | 'rating' | 'rating_count' | null;
-type SortDirection = 'asc' | 'desc';
-
-const ITEMS_PER_PAGE = 10;
+interface ScrapeJob {
+  id: string;
+  category: string;
+  location: string;
+  results_count: number;
+  credits_used: number;
+  status: string;
+  results: any[];
+  created_at: string;
+}
 
 export default function Results() {
-  const { results, addActivity } = useApp();
-  const { credits, refetchCredits } = useCredits();
+  const { user } = useApp();
   const { toast } = useToast();
-  const [isExporting, setIsExporting] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [jobs, setJobs] = useState<ScrapeJob[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedJob, setSelectedJob] = useState<ScrapeJob | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [tableNotReady, setTableNotReady] = useState(false);
 
-  // Active (applied) filters
-  const [searchQuery, setSearchQuery] = useState('');
-  const [ratingFilter, setRatingFilter] = useState<RatingFilter>('all');
-  const [verificationFilter, setVerificationFilter] = useState<VerificationFilter>('all');
-  const [hasWebsiteFilter, setHasWebsiteFilter] = useState(false);
-  const [hasPhoneFilter, setHasPhoneFilter] = useState(false);
-
-  // Pending (drawer) filters
-  const [pendingRating, setPendingRating] = useState<RatingFilter>('all');
-  const [pendingVerification, setPendingVerification] = useState<VerificationFilter>('all');
-  const [pendingHasWebsite, setPendingHasWebsite] = useState(false);
-  const [pendingHasPhone, setPendingHasPhone] = useState(false);
-
-  // Sorting
-  const [sortKey, setSortKey] = useState<SortKey>(null);
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-
-  const filteredResults = useMemo(() => {
-    let filtered = results.filter((r) => {
-      // Verification filter
-      if (verificationFilter === 'verified' && !r.verified) return false;
-      if (verificationFilter === 'unverified' && r.verified) return false;
-      // Search filter
-      if (searchQuery && !r.company_name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-      // Rating filter
-      if (ratingFilter !== 'all') {
-        if (r.rating == null) return false;
-        if (ratingFilter === '4plus' && r.rating < 4) return false;
-        if (ratingFilter === '3plus' && r.rating < 3) return false;
-        if (ratingFilter === 'below3' && r.rating >= 3) return false;
-      }
-      // Has Website filter
-      if (hasWebsiteFilter && !r.website) return false;
-      // Has Phone filter
-      if (hasPhoneFilter && !r.phone) return false;
-      return true;
-    });
-
-    // Apply sorting
-    if (sortKey) {
-      filtered = [...filtered].sort((a, b) => {
-        let aVal = a[sortKey];
-        let bVal = b[sortKey];
-
-        // Handle nulls - push to end
-        if (aVal == null && bVal == null) return 0;
-        if (aVal == null) return 1;
-        if (bVal == null) return -1;
-
-        // String comparison for company_name
-        if (sortKey === 'company_name') {
-          aVal = (aVal as string).toLowerCase();
-          bVal = (bVal as string).toLowerCase();
-        }
-
-        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-        return 0;
-      });
+  useEffect(() => {
+    if (user) {
+      fetchJobs();
+    } else {
+      setLoading(false);
     }
+  }, [user]);
 
-    return filtered;
-  }, [results, verificationFilter, searchQuery, ratingFilter, hasWebsiteFilter, hasPhoneFilter, sortKey, sortDirection]);
-
-  const totalPages = Math.ceil(filteredResults.length / ITEMS_PER_PAGE);
-  const paginatedResults = filteredResults.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
-
-  const handleExport = async (format: 'csv' | 'json') => {
-    if (filteredResults.length === 0) {
-      toast({
-        title: 'No results',
-        description: 'There are no results to export.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    // Client-side check for UX feedback before server call
-    if (credits !== null && credits < 5) {
-      toast({
-        title: 'Insufficient credits',
-        description: 'You need at least 5 credits to export. Please add more credits.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsExporting(true);
-
+  const fetchJobs = async () => {
+    setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('export-data', {
-        body: {
-          results: filteredResults,
-          format,
-        },
-      });
+      // Cast as any since scrape_jobs table may not be in TypeScript definitions yet
+      const { data, error } = await (supabase as any)
+        .from('scrape_jobs')
+        .select('*')
+        .order('created_at', { ascending: false });
 
       if (error) {
-        throw error;
-      }
-
-      if (!data || data.error) {
-        // Handle insufficient credits from server
-        if (data?.error === 'Insufficient credits') {
-          toast({
-            title: 'Insufficient credits',
-            description: 'Please add more credits to export.',
-            variant: 'destructive',
-          });
-          return;
+        if (error.message?.includes('relation') && error.message?.includes('does not exist')) {
+          setTableNotReady(true);
+        } else {
+          console.error('Error fetching jobs:', error);
         }
-        throw new Error(data?.error || 'Export failed');
+      } else {
+        setTableNotReady(false);
+        setJobs((data as ScrapeJob[]) || []);
       }
+    } catch (err) {
+      console.error('Error:', err);
+    }
+    setLoading(false);
+  };
 
-      // Create and download the file
-      const blob = new Blob([data.content], { type: data.mimeType });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = data.filename;
-      a.click();
-      URL.revokeObjectURL(url);
-
-      // Refresh credits to show updated balance
-      refetchCredits();
-
-      // Log activity (for local tracking)
-      addActivity({
-        type: 'export',
-        description: `Exported ${data.resultCount} results to ${format.toUpperCase()}`,
-        credits_used: data.creditsUsed,
-      });
-
+  const downloadCSV = (job: ScrapeJob) => {
+    if (!job.results || job.results.length === 0) {
       toast({
-        title: 'Export complete',
-        description: `Downloaded ${data.filename} (${data.creditsUsed} credits used)`,
-      });
-    } catch (error) {
-      console.error('Export error:', error);
-      toast({
-        title: 'Export failed',
-        description: error instanceof Error ? error.message : 'Please try again.',
+        title: 'No data',
+        description: 'This job has no results to download.',
         variant: 'destructive',
       });
-    } finally {
-      setIsExporting(false);
+      return;
     }
+
+    const results = job.results;
+    const headers = Object.keys(results[0]).join(',');
+    const rows = results.map((r: any) =>
+      Object.values(r).map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')
+    ).join('\n');
+    const csv = `${headers}\n${rows}`;
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${job.category}-${job.location}-${format(new Date(job.created_at), 'yyyy-MM-dd')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: 'Downloaded',
+      description: 'CSV file downloaded successfully.',
+    });
   };
 
-  // Reset to page 1 when any filter changes
-  const resetPage = () => setCurrentPage(1);
-
-  const handleSearchChange = (value: string) => {
-    setSearchQuery(value);
-    resetPage();
-  };
-
-  const handleApplyFilters = () => {
-    setRatingFilter(pendingRating);
-    setVerificationFilter(pendingVerification);
-    setHasWebsiteFilter(pendingHasWebsite);
-    setHasPhoneFilter(pendingHasPhone);
-    setIsFilterOpen(false);
-    resetPage();
-  };
-
-  const handleClearFilters = () => {
-    setPendingRating('all');
-    setPendingVerification('all');
-    setPendingHasWebsite(false);
-    setPendingHasPhone(false);
-    setRatingFilter('all');
-    setVerificationFilter('all');
-    setHasWebsiteFilter(false);
-    setHasPhoneFilter(false);
-    setIsFilterOpen(false);
-    resetPage();
-  };
-
-  const handleOpenDrawer = (open: boolean) => {
-    if (open) {
-      // Sync pending with current when opening
-      setPendingRating(ratingFilter);
-      setPendingVerification(verificationFilter);
-      setPendingHasWebsite(hasWebsiteFilter);
-      setPendingHasPhone(hasPhoneFilter);
+  const downloadJSON = (job: ScrapeJob) => {
+    if (!job.results || job.results.length === 0) {
+      toast({
+        title: 'No data',
+        description: 'This job has no results to download.',
+        variant: 'destructive',
+      });
+      return;
     }
-    setIsFilterOpen(open);
+
+    const blob = new Blob([JSON.stringify(job.results, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${job.category}-${job.location}-${format(new Date(job.created_at), 'yyyy-MM-dd')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: 'Downloaded',
+      description: 'JSON file downloaded successfully.',
+    });
   };
 
-  const removeRatingFilter = () => {
-    setRatingFilter('all');
-    setPendingRating('all');
-    resetPage();
-  };
-
-  const removeVerificationFilter = () => {
-    setVerificationFilter('all');
-    setPendingVerification('all');
-    resetPage();
-  };
-
-  const removeHasWebsiteFilter = () => {
-    setHasWebsiteFilter(false);
-    setPendingHasWebsite(false);
-    resetPage();
-  };
-
-  const removeHasPhoneFilter = () => {
-    setHasPhoneFilter(false);
-    setPendingHasPhone(false);
-    resetPage();
-  };
-
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      // Toggle direction or clear
-      if (sortDirection === 'desc') {
-        setSortDirection('asc');
-      } else {
-        setSortKey(null);
-      }
-    } else {
-      setSortKey(key);
-      setSortDirection('desc');
-    }
-  };
-
-  const getSortIcon = (key: SortKey) => {
-    if (sortKey !== key) return <ArrowUpDown className="w-4 h-4 ml-1 opacity-50" />;
-    return sortDirection === 'asc'
-      ? <ArrowUp className="w-4 h-4 ml-1" />
-      : <ArrowDown className="w-4 h-4 ml-1" />;
-  };
-
-  const hasActiveFilters = ratingFilter !== 'all' || verificationFilter !== 'all' || hasWebsiteFilter || hasPhoneFilter;
-
-  const getRatingLabel = (filter: RatingFilter) => {
-    switch (filter) {
-      case '4plus': return '⭐ 4 & above';
-      case '3plus': return '⭐ 3 & above';
-      case 'below3': return '⭐ Below 3';
-      default: return 'All ratings';
-    }
-  };
-
-  const getVerificationLabel = (filter: VerificationFilter) => {
-    switch (filter) {
-      case 'verified': return 'Yes';
-      case 'unverified': return 'No';
-      default: return 'All';
-    }
+  const viewDetails = (job: ScrapeJob) => {
+    setSelectedJob(job);
+    setDetailsOpen(true);
   };
 
   return (
     <DashboardLayout>
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 animate-in">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Results</h1>
-            <p className="text-muted-foreground">
-              {filteredResults.length} {filteredResults.length === 1 ? 'result' : 'results'} found
-            </p>
+        <div className="mb-8 animate-in">
+          <div className="flex items-center gap-3 mb-2">
+            <History className="w-8 h-8 text-primary" />
+            <h1 className="text-3xl font-bold">Scrape History</h1>
           </div>
-
-          {results.length > 0 && (
-            <div className="flex flex-wrap items-center gap-3">
-              <Button variant="outline" onClick={() => handleExport('csv')} disabled={isExporting}>
-                {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                Export CSV
-              </Button>
-              <Button variant="outline" onClick={() => handleExport('json')} disabled={isExporting}>
-                {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileJson className="w-4 h-4" />}
-                Export JSON
-              </Button>
-            </div>
-          )}
+          <p className="text-muted-foreground">
+            View and download your previous scrape results
+          </p>
         </div>
 
-        {results.length > 0 ? (
-          <>
-            {/* Search + Filters Button */}
-            <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4 animate-in" style={{ animationDelay: '100ms' }}>
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search company name..."
-                  value={searchQuery}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-
-              <Sheet open={isFilterOpen} onOpenChange={handleOpenDrawer}>
-                <SheetTrigger asChild>
-                  <Button variant="outline" className="gap-2">
-                    <Filter className="w-4 h-4" />
-                    Filters
-                    {hasActiveFilters && (
-                      <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 justify-center text-xs">
-                        {(ratingFilter !== 'all' ? 1 : 0) + (verificationFilter !== 'all' ? 1 : 0) + (hasWebsiteFilter ? 1 : 0) + (hasPhoneFilter ? 1 : 0)}
-                      </Badge>
-                    )}
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-[320px] sm:w-[400px]">
-                  <SheetHeader>
-                    <SheetTitle>Filters</SheetTitle>
-                  </SheetHeader>
-                  <div className="flex flex-col gap-6 mt-6">
-                    {/* Rating Filter */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Rating</label>
-                      <Select value={pendingRating} onValueChange={(v) => setPendingRating(v as RatingFilter)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select rating" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All ratings</SelectItem>
-                          <SelectItem value="4plus">⭐ 4 & above</SelectItem>
-                          <SelectItem value="3plus">⭐ 3 & above</SelectItem>
-                          <SelectItem value="below3">⭐ Below 3</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">Filter by minimum star rating</p>
+        {/* Content */}
+        {loading ? (
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-24 w-full" />
+            ))}
+          </div>
+        ) : tableNotReady ? (
+          <div className="glass rounded-2xl p-12 text-center animate-in">
+            <Map className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+            <h2 className="text-xl font-semibold mb-2">Setup Required</h2>
+            <p className="text-muted-foreground mb-4">
+              Please run the database migration to enable scrape history.
+            </p>
+          </div>
+        ) : jobs.length === 0 ? (
+          <div className="glass rounded-2xl p-12 text-center animate-in">
+            <Map className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+            <h2 className="text-xl font-semibold mb-2">No scrapes yet</h2>
+            <p className="text-muted-foreground mb-6">
+              Start scraping to build your lead database
+            </p>
+            <Button variant="hero" onClick={() => window.location.href = '/modules/maps'}>
+              Start Scraping
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {jobs.map((job, i) => (
+              <div
+                key={job.id}
+                className="glass rounded-xl p-6 hover-lift animate-in"
+                style={{ animationDelay: `${i * 50}ms` }}
+              >
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <Map className="w-6 h-6 text-primary" />
                     </div>
-
-                    {/* Verification Filter */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Verification Status</label>
-                      <Select value={pendingVerification} onValueChange={(v) => setPendingVerification(v as VerificationFilter)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All</SelectItem>
-                          <SelectItem value="verified">Verified only</SelectItem>
-                          <SelectItem value="unverified">Unverified only</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">Verified = rating is 3 stars or above</p>
-                    </div>
-
-                    {/* Has Website Filter */}
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <label className="text-sm font-medium">Has Website</label>
-                        <p className="text-xs text-muted-foreground">Only show results with a website</p>
+                    <div>
+                      <h3 className="font-semibold text-lg">
+                        {job.category} in {job.location}
+                      </h3>
+                      <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-4 h-4" />
+                          {formatDistanceToNow(new Date(job.created_at), { addSuffix: true })}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Zap className="w-4 h-4 text-primary" />
+                          {job.credits_used} credits
+                        </span>
+                        <Badge variant={job.status === 'completed' ? 'default' : 'secondary'}>
+                          {job.results_count} results
+                        </Badge>
                       </div>
-                      <Switch
-                        checked={pendingHasWebsite}
-                        onCheckedChange={setPendingHasWebsite}
-                      />
-                    </div>
-
-                    {/* Has Phone Filter */}
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <label className="text-sm font-medium">Has Phone</label>
-                        <p className="text-xs text-muted-foreground">Only show results with a phone number</p>
-                      </div>
-                      <Switch
-                        checked={pendingHasPhone}
-                        onCheckedChange={setPendingHasPhone}
-                      />
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex gap-3 mt-4">
-                      <Button onClick={handleApplyFilters} className="flex-1">
-                        Apply Filters
-                      </Button>
-                      <Button variant="outline" onClick={handleClearFilters} className="flex-1">
-                        Clear Filters
-                      </Button>
                     </div>
                   </div>
-                </SheetContent>
-              </Sheet>
-            </div>
 
-            {/* Active Filter Chips */}
-            {hasActiveFilters && (
-              <div className="flex flex-wrap items-center gap-2 mb-4 animate-in" style={{ animationDelay: '150ms' }}>
-                {ratingFilter !== 'all' && (
-                  <Badge variant="secondary" className="gap-1 pr-1">
-                    Rating: {getRatingLabel(ratingFilter)}
-                    <button onClick={removeRatingFilter} className="ml-1 hover:bg-muted rounded p-0.5">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </Badge>
-                )}
-                {verificationFilter !== 'all' && (
-                  <Badge variant="secondary" className="gap-1 pr-1">
-                    Verified: {getVerificationLabel(verificationFilter)}
-                    <button onClick={removeVerificationFilter} className="ml-1 hover:bg-muted rounded p-0.5">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </Badge>
-                )}
-                {hasWebsiteFilter && (
-                  <Badge variant="secondary" className="gap-1 pr-1">
-                    Has Website
-                    <button onClick={removeHasWebsiteFilter} className="ml-1 hover:bg-muted rounded p-0.5">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </Badge>
-                )}
-                {hasPhoneFilter && (
-                  <Badge variant="secondary" className="gap-1 pr-1">
-                    Has Phone
-                    <button onClick={removeHasPhoneFilter} className="ml-1 hover:bg-muted rounded p-0.5">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </Badge>
-                )}
-                <button onClick={handleClearFilters} className="text-xs text-muted-foreground hover:text-foreground underline">
-                  Clear all filters
-                </button>
+                  <div className="flex items-center gap-2 ml-16 md:ml-0">
+                    <Button variant="outline" size="sm" onClick={() => viewDetails(job)}>
+                      <Eye className="w-4 h-4" />
+                      View
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => downloadCSV(job)}>
+                      <FileSpreadsheet className="w-4 h-4" />
+                      CSV
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => downloadJSON(job)}>
+                      <FileJson className="w-4 h-4" />
+                      JSON
+                    </Button>
+                  </div>
+                </div>
               </div>
-            )}
+            ))}
+          </div>
+        )}
 
-            {/* Table */}
-            <div className="glass rounded-xl overflow-hidden animate-in" style={{ animationDelay: '200ms' }}>
-              <div className="overflow-x-auto">
+        {/* Job Details Dialog */}
+        <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle>
+                {selectedJob?.category} in {selectedJob?.location}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-auto">
+              {selectedJob?.results && selectedJob.results.length > 0 ? (
                 <Table>
                   <TableHeader>
-                    <TableRow className="border-border hover:bg-transparent">
-                      <TableHead className="text-muted-foreground">
-                        <button
-                          onClick={() => handleSort('company_name')}
-                          className="inline-flex items-center hover:text-foreground transition-colors"
-                        >
-                          Company Name
-                          {getSortIcon('company_name')}
-                        </button>
-                      </TableHead>
-                      <TableHead className="text-muted-foreground">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="inline-flex items-center gap-1 cursor-help">
-                                Verified
-                                <Info className="w-3.5 h-3.5" />
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Verified means the rating is 3 stars or above.</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </TableHead>
-                      <TableHead className="text-muted-foreground">Phone</TableHead>
-                      <TableHead className="text-muted-foreground">Email</TableHead>
-                      <TableHead className="text-muted-foreground">Website</TableHead>
-                      <TableHead className="text-muted-foreground">
-                        <button
-                          onClick={() => handleSort('rating')}
-                          className="inline-flex items-center hover:text-foreground transition-colors"
-                        >
-                          Rating
-                          {getSortIcon('rating')}
-                        </button>
-                      </TableHead>
-                      <TableHead className="text-muted-foreground text-right">
-                        <button
-                          onClick={() => handleSort('rating_count')}
-                          className="inline-flex items-center hover:text-foreground transition-colors ml-auto"
-                        >
-                          Reviews
-                          {getSortIcon('rating_count')}
-                        </button>
-                      </TableHead>
+                    <TableRow>
+                      <TableHead>Company</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Website</TableHead>
+                      <TableHead>Rating</TableHead>
+                      <TableHead>Verified</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedResults.map((result, index) => (
-                      <TableRow key={index} className="border-border">
-                        <TableCell className="font-medium">{result.company_name}</TableCell>
-                        <TableCell>
-                          {result.verified ? (
-                            <Badge className="gap-1 bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/20 border-0">
-                              <Check className="w-3 h-3" />
-                              Yes
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary" className="gap-1 bg-muted/50 text-muted-foreground border-0">
-                              No
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{result.phone || '—'}</TableCell>
-                        <TableCell className="text-muted-foreground">{result.email || '—'}</TableCell>
+                    {selectedJob.results.slice(0, 50).map((result: any, idx: number) => (
+                      <TableRow key={idx}>
+                        <TableCell className="font-medium">{result.company_name || '-'}</TableCell>
+                        <TableCell>{result.phone || '-'}</TableCell>
                         <TableCell>
                           {result.website ? (
-                            <a
-                              href={result.website}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-primary hover:underline inline-flex items-center gap-1"
-                            >
+                            <a href={result.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                               Visit
-                              <ExternalLink className="w-3 h-3" />
                             </a>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
+                          ) : '-'}
                         </TableCell>
+                        <TableCell>{result.rating || '-'}</TableCell>
                         <TableCell>
-                          {result.rating ? (
-                            <span className="text-warning font-medium">★ {result.rating}</span>
+                          {result.verified ? (
+                            <Badge variant="default">Verified</Badge>
                           ) : (
-                            <span className="text-muted-foreground">—</span>
+                            <Badge variant="secondary">No</Badge>
                           )}
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {result.rating_count?.toLocaleString() || '—'}
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-              </div>
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between p-4 border-t border-border">
-                  <p className="text-sm text-muted-foreground">
-                    Page {currentPage} of {totalPages}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </Button>
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      let pageNum: number;
-                      if (totalPages <= 5) {
-                        pageNum = i + 1;
-                      } else if (currentPage <= 3) {
-                        pageNum = i + 1;
-                      } else if (currentPage >= totalPages - 2) {
-                        pageNum = totalPages - 4 + i;
-                      } else {
-                        pageNum = currentPage - 2 + i;
-                      }
-                      return (
-                        <Button
-                          key={pageNum}
-                          variant={currentPage === pageNum ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setCurrentPage(pageNum)}
-                        >
-                          {pageNum}
-                        </Button>
-                      );
-                    })}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
+              ) : (
+                <p className="text-center text-muted-foreground py-8">No results available</p>
+              )}
+              {selectedJob?.results && selectedJob.results.length > 50 && (
+                <p className="text-center text-muted-foreground text-sm py-4">
+                  Showing first 50 of {selectedJob.results.length} results. Download to see all.
+                </p>
               )}
             </div>
-          </>
-        ) : (
-          /* Empty State */
-          <div className="glass rounded-2xl p-12 text-center animate-in">
-            <div className="w-16 h-16 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-4">
-              <Download className="w-8 h-8 text-muted-foreground" />
-            </div>
-            <h2 className="text-xl font-semibold mb-2">No results yet</h2>
-            <p className="text-muted-foreground mb-6">Run a scrape to see results here</p>
-            <Link to="/modules/maps">
-              <Button variant="hero">Start Scraping</Button>
-            </Link>
-          </div>
-        )}
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

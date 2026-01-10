@@ -44,6 +44,42 @@ export type Database = {
         }
         Relationships: []
       }
+      scrape_jobs: {
+        Row: {
+          id: string
+          user_id: string
+          category: string
+          location: string
+          results_count: number
+          credits_used: number
+          status: string
+          results: any[] | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          category: string
+          location: string
+          results_count?: number
+          credits_used?: number
+          status?: string
+          results?: any[] | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          category?: string
+          location?: string
+          results_count?: number
+          credits_used?: number
+          status?: string
+          results?: any[] | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       api_keys: {
         Row: {
           id: string

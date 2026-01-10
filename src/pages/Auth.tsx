@@ -82,7 +82,7 @@ export default function Auth() {
         setIsLoading(false);
       } else {
         toast({
-          title: "Welcome to Scrapewave!",
+          title: "Welcome to VeriLead!",
           description: "Your account has been created successfully.",
         });
         navigate('/dashboard');
@@ -183,7 +183,7 @@ export default function Auth() {
       case 'signup': return 'Create your account';
       case 'forgot': return 'Reset your password';
       case 'reset': return 'Set new password';
-      default: return 'Welcome to Scrapewave';
+      default: return 'Welcome to VeriLead';
     }
   };
 
